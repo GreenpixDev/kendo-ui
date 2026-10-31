@@ -1,0 +1,9 @@
+services:
+  reports-web:
+    build:
+      context: .
+    image: reports-web:dev
+    # Windows 11 и образ ltsc2022 имеют разные номера сборки Windows: нужна изоляция Hyper-V
+    isolation: hyperv
+    ports:
+      - "8080:80"

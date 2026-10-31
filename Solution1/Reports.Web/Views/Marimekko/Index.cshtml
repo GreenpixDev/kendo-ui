@@ -1,0 +1,133 @@
+@{
+    ViewBag.Title = "Диаграмма Маримекко";
+}
+
+<div class="mm-toolbar">
+    <label for="report">Отчёт:</label>
+    <input id="report" style="width: 420px" />
+    <span class="mm-switch">
+        <button type="button" id="btnChart" class="k-button k-button-solid k-button-solid-primary">График</button>
+        <button type="button" id="btnTable" class="k-button k-button-solid k-button-solid-base">Таблица</button>
+    </span>
+</div>
+<div class="mm-toolbar">
+    <label for="fColumn" id="lblColumn">Столбцы:</label>
+    <select id="fColumn" multiple="multiple" style="width: 340px"></select>
+    <label for="fSegment" id="lblSegment">Сегменты:</label>
+    <select id="fSegment" multiple="multiple" style="width: 340px"></select>
+</div>
+
+<div id="mmError" class="mm-error" style="display: none"></div>
+<div id="mm" class="mm-chart"></div>
+<div id="mmGrid" style="display: none"></div>
+
+@section scripts {
+    <script>
+        (function () {
+            var urls = {
+                list: '@Url.Action("List", "ReportData")',
+                data: '@Url.Action("Marimekko", "ReportData")'
+            };
+            var current = null, rows = [], view = "chart", requestId = 0;
+
+            var chart = new MarimekkoChart("#mm", {
+                format: function (v) { return kendo.toString(v, "n1") + (current ? " " + current.unit : ""); }
+            });
+
+            function filterOf() {
+                var cols = $("#fColumn").data("kendoMultiSelect").value();
+                var segs = $("#fSegment").data("kendoMultiSelect").value();
+                var parts = [];
+                if (cols.length) { parts.push("column=" + cols.join("|")); }
+                if (segs.length) { parts.push("segment=" + segs.join("|")); }
+                return parts.join(";");
+            }
+
+            // Таблица показывает ту же выборку, что и диаграмма, в виде строк.
+            function buildGrid() {
+                var totals = {}, data = [];
+                rows.forEach(function (r) { if (r.value > 0) { totals[r.column] = (totals[r.column] || 0) + r.value; } });
+                rows.forEach(function (r) {
+                    if (r.value > 0) { data.push({ column: r.column, segment: r.segment, value: r.value, share: r.value / totals[r.column] }); }
+                });
+                var grid = $("#mmGrid").data("kendoGrid");
+                if (grid) { grid.destroy(); $("#mmGrid").empty(); }
+                $("#mmGrid").kendoGrid({
+                    dataSource: { data: data, pageSize: 20 },
+                    sortable: true,
+                    pageable: true,
+                    columns: [
+                        { field: "column", title: current.columnTitle },
+                        { field: "segment", title: current.segmentTitle },
+                        { field: "value", title: "Значение, " + current.unit, format: "{0:n1}" },
+                        { field: "share", title: "Доля в столбце", format: "{0:p1}" }
+                    ]
+                });
+            }
+
+            function showError(xhr) {
+                var body = xhr.responseJSON, text = body && body.message ? body.message : "Не удалось загрузить данные отчёта.";
+                $("#mmError").text(text).show();
+                rows = [];
+                chart.setData(rows);
+                buildGrid();    // иначе в таблице остаются строки предыдущей выборки
+            }
+
+            function distinct(field) {
+                var seen = {}, list = [];
+                rows.forEach(function (r) { if (!seen[r[field]]) { seen[r[field]] = true; list.push(r[field]); } });
+                return list;
+            }
+
+            // reset: смена отчёта - фильтры сбрасываются, списки значений строятся по полной выборке
+            function load(report, reset) {
+                var id = ++requestId;
+                current = report;
+                $("#mmError").hide();
+                $("#lblColumn").text(report.columnTitle + ":");
+                $("#lblSegment").text(report.segmentTitle + ":");
+                if (reset) {
+                    $("#fColumn").data("kendoMultiSelect").value([]);
+                    $("#fSegment").data("kendoMultiSelect").value([]);
+                }
+                var query = { reportId: report.id }, filter = filterOf();
+                if (filter) { query.filter = filter; }
+
+                $.getJSON(urls.data, query).done(function (d) {
+                    if (id !== requestId) { return; }           // ответ устаревшего запроса
+                    rows = d.rows;
+                    if (reset) {
+                        $("#fColumn").data("kendoMultiSelect").setDataSource(distinct("column"));
+                        $("#fSegment").data("kendoMultiSelect").setDataSource(distinct("segment"));
+                    }
+                    chart.setData(rows);
+                    buildGrid();
+                }).fail(function (xhr) { if (id === requestId) { showError(xhr); } });
+            }
+
+            function setView(next) {
+                view = next;
+                $("#mm").toggle(view === "chart");
+                $("#mmGrid").toggle(view === "table");
+                $("#btnChart").toggleClass("k-button-solid-primary", view === "chart").toggleClass("k-button-solid-base", view !== "chart");
+                $("#btnTable").toggleClass("k-button-solid-primary", view === "table").toggleClass("k-button-solid-base", view !== "table");
+                if (view === "chart") { chart.render(); }   // скрытый контейнер не имеет размера: перерисовываем после показа
+            }
+
+            $("#btnChart").on("click", function () { setView("chart"); });
+            $("#btnTable").on("click", function () { setView("table"); });
+
+            function onFilter() { if (current) { load(current, false); } }
+            $("#fColumn").kendoMultiSelect({ placeholder: "Все", autoClose: false, dataSource: [], change: onFilter });
+            $("#fSegment").kendoMultiSelect({ placeholder: "Все", autoClose: false, dataSource: [], change: onFilter });
+
+            $("#report").kendoDropDownList({
+                dataTextField: "name",
+                dataValueField: "id",
+                dataSource: { transport: { read: { url: urls.list, dataType: "json", cache: false } }, schema: { data: "reports" } },
+                dataBound: function () { if (!current && this.dataItem()) { load(this.dataItem(), true); } },
+                change: function () { load(this.dataItem(), true); }
+            });
+        })();
+    </script>
+}

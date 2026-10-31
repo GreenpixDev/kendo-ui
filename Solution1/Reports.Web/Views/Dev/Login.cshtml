@@ -1,0 +1,13 @@
+@{
+    ViewBag.Title = "Вход (тестовый контур)";
+}
+
+<h2>Заглушка входа АИС ГП</h2>
+<p>Только для тестового контура. Сейчас: <b>@(string.IsNullOrEmpty((string)ViewBag.Current) ? "не авторизован" : (string)ViewBag.Current)</b></p>
+<ul>
+    <li>@Html.ActionLink("Тестовый специалист", "Login", new { @as = "specialist" })</li>
+    <li>@Html.ActionLink("Тестовый пользователь", "Login", new { @as = "user" })</li>
+    <li>@Html.ActionLink("Пользователь без роли", "Login", new { @as = "norole" })</li>
+    <li>@Html.ActionLink("Выйти (неавторизованный)", "Login", new { @as = "none" })</li>
+</ul>
+<p>@Html.ActionLink("К диаграмме Маримекко", "Index", "Marimekko")</p>

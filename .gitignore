@@ -1,0 +1,15 @@
+# Сборка
+bin/
+obj/
+packages/
+*.user
+*.suo
+.vs/
+
+# IDE
+.idea/
+*.DotSettings.user
+
+# Windows
+Thumbs.db
+desktop.ini

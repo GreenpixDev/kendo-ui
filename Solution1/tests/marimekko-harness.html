@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8">
+    <title>Маримекко: стенд проверки</title>
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/themes/8.1.0/default/default-ocean-blue.css">
+    <style>
+        body { font-family: Roboto, Arial, sans-serif; margin: 16px; color: #3d3d3d; }
+        #bar button { margin: 0 4px 6px 0; padding: 4px 10px; }
+        #mm { height: 420px; border: 1px solid #ddd; }
+        #checks div { font-size: 13px; }
+        .ok { color: #2e7d32; } .fail { color: #c62828; font-weight: bold; }
+    </style>
+</head>
+<body>
+<h3>Диаграмма Маримекко: тестовые наборы MM-01 … MM-13</h3>
+<div id="bar"></div>
+<div id="mm"></div>
+<div id="checks"></div>
+
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://kendo.cdn.telerik.com/2024.3.1015/js/kendo.all.min.js"></script>
+<script src="https://kendo.cdn.telerik.com/2024.3.1015/js/cultures/kendo.culture.ru-RU.min.js"></script>
+<script src="../Reports.Web/Scripts/marimekko.js"></script>
+<script>
+    kendo.culture("ru-RU");
+
+    function r(c, s, v) { return { column: c, segment: s, value: v }; }
+
+    // 4 столбца (итоги 500 / 300 / 150 / 50) и 3 сегмента
+    var BASE = [
+        r("ГП 11", "ГРБС 001", 250), r("ГП 11", "ГРБС 002", 150), r("ГП 11", "ГРБС 003", 100),
+        r("ГП 12", "ГРБС 001", 90),  r("ГП 12", "ГРБС 002", 120), r("ГП 12", "ГРБС 003", 90),
+        r("ГП 13", "ГРБС 001", 75),  r("ГП 13", "ГРБС 002", 45),  r("ГП 13", "ГРБС 003", 30),
+        r("ГП 14", "ГРБС 001", 10),  r("ГП 14", "ГРБС 002", 25),  r("ГП 14", "ГРБС 003", 15)
+    ];
+
+    function many(n) {
+        var rows = [], i;
+        for (i = 1; i <= n; i++) {
+            rows.push(r("ГП " + i, "ГРБС 001", 1000 / i), r("ГП " + i, "ГРБС 002", 500 / i));
+        }
+        return rows;
+    }
+
+    var SETS = {
+        "База (500/300/150/50)": BASE,
+        "0 и −10 (MM-05)": BASE.concat([r("ГП 11", "ГРБС 001", 0), r("ГП 15", "ГРБС 002", -10)]),
+        "Нет данных (MM-08)": [],
+        "Только отрицательные": [r("ГП 1", "ГРБС 001", -5), r("ГП 1", "ГРБС 002", 0)],
+        "1×1 (MM-09)": [r("ГП 1", "ГРБС 001", 42)],
+        "Длинное название (MM-07)": BASE.concat([r(new Array(9).join("Очень длинное название госпрограммы ").slice(0, 80), "ГРБС 001", 400)]),
+        "Много сегментов (легенда)": (function () {
+            var rows = [], i;
+            for (i = 1; i <= 14; i++) { rows.push(r("ГП 11", "Главный распорядитель бюджетных средств № " + i, 10 + i), r("ГП 12", "Главный распорядитель бюджетных средств № " + i, 5 + i)); }
+            return rows;
+        })(),
+        "25 столбцов (MM-12)": many(25),
+        "400 столбцов (MM-13)": many(400)
+    };
+
+    var chart = new MarimekkoChart("#mm", {
+        format: function (v) { return kendo.toString(v, "n1") + " млн руб."; },
+        click: function (i) { window.__lastClick = i; }
+    });
+    window.chart = chart;
+    window.SETS = SETS;
+
+    var bar = $("#bar");
+    Object.keys(SETS).forEach(function (name) {
+        $("<button>").text(name).appendTo(bar).on("click", function () { chart.setData(SETS[name]); check(name); });
+    });
+
+    // Автопроверки геометрии: ширины пропорциональны итогам, высоты сегментов = долям, столбец занимает 100 % высоты.
+    function check(name) {
+        var L = chart.getLayout(), box = $("#checks").empty(), fails = 0;
+        function t(ok, text) { if (!ok) { fails++; } $("<div>").addClass(ok ? "ok" : "fail").text((ok ? "OK  " : "FAIL  ") + text).appendTo(box); }
+        function near(a, b) { return Math.abs(a - b) < 1e-6 * Math.max(1, Math.abs(b)); }
+        if (!L) { t(true, name + ": пустая область с сообщением"); return; }
+        var grand = 0, sumW = 0;
+        L.columns.forEach(function (c) { grand += c.total; sumW += c.w; });
+        t(L.columns.length <= 20, "столбцов " + L.columns.length + " (не более maxColumns)");
+        t(L.columns.every(function (c) { return c.w > 0; }), "все ширины положительны");
+        t(L.columns.every(function (c) { return near(c.w / sumW, c.total / grand); }), "ширина столбца ∝ итогу");
+        t(L.columns.every(function (c) {
+            var h = 0, ok = true;
+            c.segments.forEach(function (s) { h += s.h; ok = ok && near(s.h / L.plot.h, s.value / c.total); });
+            return ok && near(h, L.plot.h);
+        }), "высота сегмента = доля, столбец = 100 % высоты");
+        t(near(grand, window.__expectedTotal(name, grand)), "сумма итогов = " + grand);
+    }
+    window.__expectedTotal = function (name, got) {
+        var rows = SETS[name], s = 0;
+        rows.forEach(function (x) { if (x.value > 0) { s += x.value; } });
+        return s;
+    };
+
+    chart.setData(BASE);
+    check("База (500/300/150/50)");
+</script>
+</body>
+</html>

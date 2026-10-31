@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewBag.Title — Аналитические отчёты</title>
+    @* Kendo UI for jQuery с CDN Telerik; версия закреплена. Для ASP.NET MVC 5 без Telerik.UI.for.AspNet.Mvc (платная лента NuGet). *@
+    <link rel="stylesheet" href="https://kendo.cdn.telerik.com/themes/8.1.0/default/default-ocean-blue.css" />
+    <link rel="stylesheet" href="@Url.Content("~/Content/site.css")" />
+</head>
+<body>
+    <header class="app-header">
+        <span class="app-title">Аналитические отчёты</span>
+        <span class="app-user">@ViewBag.UserName</span>
+    </header>
+    <main class="app-body">
+        @RenderBody()
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://kendo.cdn.telerik.com/2024.3.1015/js/kendo.all.min.js"></script>
+    <script src="https://kendo.cdn.telerik.com/2024.3.1015/js/cultures/kendo.culture.ru-RU.min.js"></script>
+    <script src="https://kendo.cdn.telerik.com/2024.3.1015/js/messages/kendo.messages.ru-RU.min.js"></script>
+    <script src="@Url.Content("~/Scripts/kendo-ui-license.js")"></script>
+    <script>kendo.culture("ru-RU");</script>
+    <script src="@Url.Content("~/Scripts/marimekko.js")"></script>
+    @RenderSection("scripts", required: false)
+</body>
+</html>
